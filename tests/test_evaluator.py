@@ -74,7 +74,7 @@ def test_type_error_reports_position():
 def test_undefined_variable():
     with pytest.raises(KonfigNameError) as error:
         evaluate(parse('expose string url = $missing ? "a" : "b"'))
-    assert "undefined variable 'missing'" in str(error.value)
+    assert "undefined name 'missing'" in str(error.value)
 
 
 def test_variable_must_be_declared_before_use():
@@ -85,7 +85,7 @@ def test_variable_must_be_declared_before_use():
             var dev = true
             """
         ))
-    assert "undefined variable 'dev'" in str(error.value)
+    assert "undefined name 'dev'" in str(error.value)
 
 
 def test_duplicate_var_declaration():
@@ -127,3 +127,103 @@ def test_nested_ternary_evaluation():
 def test_late_take_branch_still_checked_by_expose_type():
     with pytest.raises(KonfigTypeError):
         evaluate(parse('var dev = false\nexpose string url = $dev ? "a" : 2'))
+
+def test_interpolation_joins_chunks_and_references():
+    values = evaluate(
+        parse(
+            """
+            var host = "localhost"
+            expose int port = 8080
+            expose string url = "http://${host}:${port}/"
+            """
+        )
+    )
+    assert values["url"] == "http://localhost:8080/"
+
+
+def test_interpolation_formats_bools_like_the_language():
+    values = evaluate(
+        parse(
+            """
+            var debug = true
+            var quiet = false
+            expose string mode = "debug=${debug} quiet=${quiet}"
+            """
+        )
+    )
+    assert values["mode"] == "debug=true quiet=false"
+
+
+def test_interpolation_formats_numbers():
+    values = evaluate(
+        parse(
+            """
+            expose float ratio = 1.5
+            expose string label = "ratio=${ratio}"
+            """
+        )
+    )
+    assert values["label"] == "ratio=1.5"
+
+
+def test_interpolation_of_an_interpolated_var():
+    values = evaluate(
+        parse(
+            """
+            var a = "x"
+            var b = "${a}y"
+            expose string c = "z${b}z"
+            """
+        )
+    )
+    assert values["c"] == "zxyz"
+
+
+def test_interpolation_can_reference_earlier_exposes():
+    values = evaluate(
+        parse(
+            """
+            expose int port = 8080
+            expose string url = "http://localhost:${port}"
+            """
+        )
+    )
+    assert values["url"] == "http://localhost:8080"
+
+
+def test_interpolation_cannot_reference_later_declarations():
+    with pytest.raises(KonfigNameError) as error:
+        evaluate(parse(
+            """
+            expose string url = "http://localhost:${port}"
+            expose int port = 8080
+            """
+        ))
+    assert "undefined name 'port'" in str(error.value)
+
+
+def test_undefined_name_inside_interpolation_reports_string_position():
+    with pytest.raises(KonfigNameError) as error:
+        evaluate(parse('expose string url = "http://${missing}/"'))
+    assert error.value.position.column == 29
+
+
+def test_comments_and_interpolation_together():
+    values = evaluate(
+        parse(
+            """
+            # runtime switches
+            var dev = true  # flip for prod
+
+            # service endpoints
+            expose string base = $dev ? "http://127.0.0.1" : "http://example.com"
+            expose int port = 8080
+            expose string api = "${base}:${port}/api"
+            """
+        )
+    )
+    assert values == {
+        "base": "http://127.0.0.1",
+        "port": 8080,
+        "api": "http://127.0.0.1:8080/api",
+    }

@@ -2,7 +2,7 @@
 
 import pytest
 
-from konfig.nodes import ExposeDecl, Literal, Ternary, Var, VarDecl
+from konfig.nodes import ExposeDecl, Interp, Literal, Ternary, Var, VarDecl
 from konfig.errors import KonfigSyntaxError
 from konfig.parser import parse, tokenize
 
@@ -169,3 +169,68 @@ def test_trailing_garbage_after_value():
     with pytest.raises(KonfigSyntaxError) as error:
         parse("var dev = true false")
     assert "expected a declaration" in str(error.value)
+
+def test_comments_are_skipped():
+    assert parse("# just a comment") == []
+    document = parse(
+        """
+        # section: general
+
+        var dev = true  # toggle
+        expose int port = 8080
+        """
+    )
+    assert [decl.name for decl in document] == ["dev", "port"]
+
+
+def test_hash_inside_string_is_not_a_comment():
+    (decl,) = parse('expose string label = "a # b"')
+    assert isinstance(decl.value, Literal)
+    assert decl.value.value == "a # b"
+
+
+def test_string_interpolation_parts():
+    (decl,) = parse('expose string url = "http://${host}:${port}/"')
+    value = decl.value
+    assert isinstance(value, Interp)
+    kinds = [type(part).__name__ for part in value.parts]
+    assert kinds == ["str", "Var", "str", "Var", "str"]
+    host_ref = value.parts[1]
+    port_ref = value.parts[3]
+    assert host_ref.name == "host"
+    assert host_ref.position.column == 29  # the "$" of "${host}"
+    assert port_ref.name == "port"
+    assert port_ref.position.column == 37
+
+
+def test_plain_string_stays_a_literal():
+    (decl,) = parse('expose string name = "no interpolation here"')
+    assert isinstance(decl.value, Literal)
+    assert decl.value.value == "no interpolation here"
+
+
+def test_escaped_dollar_is_not_interpolated():
+    (decl,) = parse(r'expose string price = "\${price}"')
+    assert isinstance(decl.value, Literal)
+    assert decl.value.value == "${price}"
+
+
+def test_adjacent_interpolations_merge_nothing():
+    (decl,) = parse('expose string pair = "${a}${b}"')
+    assert isinstance(decl.value, Interp)
+    assert [type(part).__name__ for part in decl.value.parts] == ["Var", "Var"]
+    assert decl.value.parts[0].name == "a"
+    assert decl.value.parts[1].name == "b"
+
+
+def test_unclosed_interpolation_error():
+    with pytest.raises(KonfigSyntaxError) as error:
+        parse('expose string s = "${port"')
+    assert "missing '}' in '${port}' interpolation" in str(error.value)
+    assert error.value.position.column == 20
+
+
+def test_missing_interpolation_name_error():
+    with pytest.raises(KonfigSyntaxError) as error:
+        parse('expose string s = "${}"')
+    assert "missing variable name" in str(error.value)

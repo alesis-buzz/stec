@@ -121,3 +121,21 @@ def test_repr_does_not_leak_values(tmp_path, fresh_konfig):
     rendered = repr(Konfig)
     assert "topsecret" not in rendered
     assert "secret" in rendered
+
+def test_load_file_with_comments_and_interpolation(tmp_path, fresh_konfig):
+    source = """
+    # runtime switches
+    var dev = true  # flip for prod
+    var pool = 10
+
+    expose int port = 8080
+    expose bool debug = $dev
+    expose string dsn = "postgres://localhost:5432/app?pool=${pool}"
+    """
+    Konfig.load(write_config(tmp_path, source))
+
+    assert Konfig.as_dict() == {
+        "port": 8080,
+        "debug": True,
+        "dsn": "postgres://localhost:5432/app?pool=10",
+    }
