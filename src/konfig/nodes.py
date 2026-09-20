@@ -1,0 +1,69 @@
+"""Abstract syntax tree nodes for konfig documents."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Union
+
+
+@dataclass(frozen=True)
+class Position:
+    """A one-based (line, column) location in the source text."""
+
+    line: int
+    column: int
+
+    def __str__(self) -> str:
+        return f"{self.line}:{self.column}"
+
+
+@dataclass(frozen=True)
+class Literal:
+    """A literal value: int, float, string, or bool."""
+
+    value: object
+    kind: str
+    position: Position
+
+
+@dataclass(frozen=True)
+class Var:
+    """A reference to a previously declared ``var``."""
+
+    name: str
+    position: Position
+
+
+@dataclass(frozen=True)
+class Ternary:
+    """A conditional expression: ``condition ? then : otherwise``."""
+
+    condition: Expr
+    then: Expr
+    otherwise: Expr
+    position: Position
+
+
+Expr = Union[Literal, Var, Ternary]
+
+
+@dataclass(frozen=True)
+class VarDecl:
+    """An internal variable declaration: ``var NAME = value``."""
+
+    name: str
+    value: Expr
+    position: Position
+
+
+@dataclass(frozen=True)
+class ExposeDecl:
+    """A public, typed configuration value: ``expose TYPE NAME = value``."""
+
+    name: str
+    type: str
+    value: Expr
+    position: Position
+
+
+Document = list[Union[VarDecl, ExposeDecl]]
