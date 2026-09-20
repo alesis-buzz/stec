@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from typing import Optional, Union
 
 
 @dataclass(frozen=True)
@@ -77,4 +77,23 @@ class ExposeDecl:
     position: Position
 
 
-Document = list[Union[VarDecl, ExposeDecl]]
+@dataclass(frozen=True)
+class ExportEnvDecl:
+    """An environment export: ``export env NAME = value``."""
+
+    name: str
+    value: Expr
+    position: Position
+
+
+@dataclass(frozen=True)
+class ImportEnvDecl:
+    """An environment import: ``import env TYPE NAME [= default]``."""
+
+    name: str
+    type: str
+    default: Optional[Expr]
+    position: Position
+
+
+Document = list[Union[VarDecl, ExposeDecl, ExportEnvDecl, ImportEnvDecl]]

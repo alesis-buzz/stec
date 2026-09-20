@@ -52,7 +52,9 @@ pip install stec
 
 ## The language
 
-A stec file is a list of declarations. There are two kinds:
+A stec file is a list of declarations. There are four kinds:
+`expose`, `var`, `export env`, and `import env` — the last two integrate
+with the process environment (see below).
 
 ### `expose` — public, typed values
 
@@ -138,6 +140,39 @@ var dev = true  # flip for prod
 expose int port = 8080
 ```
 
+### Environment integration
+
+stec can push values out to, and pull values in from, the process environment.
+
+**`export env NAME = value`** sets the OS environment variable `NAME` for the
+current process (child processes inherit it):
+
+```stec
+export env MYAPP_MODE = $dev ? "development" : "production"
+```
+
+- Values are formatted like interpolation: `true`/`false`, `1.5`, `8080`.
+- Exported names join the document namespace, so later `$name` and
+  `${name}` references can use them.
+- Exported values are *not* published on the `Stec` singleton — use
+  `expose` for that.
+
+**`import env TYPE NAME = DEFAULT`** reads the environment variable `NAME`,
+coerces it to the declared type, and publishes it like `expose`. The default
+is optional:
+
+```stec
+import env int PORT = 8080        # falls back to 8080 when PORT is not set
+import env string MYAPP_TOKEN     # fails at load time when MYAPP_TOKEN is not set
+```
+
+- When the variable exists, its raw string is coerced to the type
+  (`"9090"` becomes `9090`); a value that cannot be coerced raises
+  `StecTypeError` at load time.
+- `bool` accepts `true` / `false`, case-insensitively.
+- When the variable is missing, the default is evaluated and used; with no
+  default, loading fails with `StecNameError`.
+
 ### Strings
 
 Strings are double-quoted and support common escape sequences:
@@ -217,7 +252,8 @@ Notes:
 - Loading twice without `force=True` raises `StecAlreadyLoadedError` —
   silent double-loading usually hides a bug, so it is treated as one.
 - A failed load leaves the singleton **unloaded**: fix the file and load again.
-- Only `expose` declarations are published; `var` values stay internal.
+- Only `expose` and `import env` declarations are published; `var` and
+  `export env` values stay internal.
 - `repr(Stec)` shows the loaded path and key names, but never values —
   safe to log even if the configuration contains secrets.
 
@@ -247,8 +283,8 @@ except StecError as error:
 | --- | --- |
 | `StecError` | Base class for everything stec raises. |
 | `StecSyntaxError` | The file cannot be tokenized or parsed. |
-| `StecTypeError` | A value does not match the declared `expose` type, or a ternary condition is not a `bool`. |
-| `StecNameError` | A `$variable` is undefined or a name is declared twice. |
+| `StecTypeError` | A value does not match the declared type, a ternary condition is not a `bool`, an environment value cannot be coerced, or an `import env` default has the wrong type. |
+| `StecNameError` | An undefined reference, a duplicate declaration, or a required environment variable that is not set. |
 | `StecLoadError` | The file cannot be read or decoded (missing file, bad UTF-8...). |
 | `StecAlreadyLoadedError` | `load()` is called twice without `force=True`. |
 

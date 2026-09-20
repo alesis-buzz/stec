@@ -11,10 +11,13 @@ SOURCE = """
 # runtime switches
 var dev = true  # flip for prod
 
+export env STEC_MODE = $dev ? "development" : "production"
+import env string STEC_HOST = "127.0.0.1"
+
 expose int port = 8080
 expose string secret = "secreteetoiertoiertoeritoeritoeriotio"
-expose string url = $dev ? "127.0.0.1" : "0.0.0.0"
-expose string api = "${url}:${port}/api"
+expose string url = "http://${STEC_HOST}:${port}"
+expose string api = "${url}/api?mode=${STEC_MODE}"
 """
 
 

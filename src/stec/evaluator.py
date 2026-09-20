@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import os
+
 from .nodes import (
     Document,
     ExposeDecl,
+    ExportEnvDecl,
     Expr,
+    ImportEnvDecl,
     Interp,
     Literal,
     Position,
@@ -72,6 +76,38 @@ def _eval_expr(expr: Expr, environment: dict[str, object]) -> object:
     )
 
 
+def _coerce_env_value(
+    name: str,
+    raw: str,
+    type_name: str,
+    position: Position,
+) -> object:
+    """Coerce the raw string of an environment variable to a declared type."""
+    if type_name == "string":
+        return raw
+    if type_name == "int":
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    elif type_name == "float":
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    elif type_name == "bool":
+        lowered = raw.lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+    raise StecTypeError(
+        f"environment variable '{name}' has value {raw!r}, "
+        f"which is not a valid '{type_name}'",
+        position,
+    )
+
+
 def _check_duplicate(
     name: str,
     position: Position,
@@ -84,9 +120,11 @@ def _check_duplicate(
 def evaluate(document: Document) -> dict[str, object]:
     """Evaluate a document in order and return the exposed values.
 
-    ``var`` and ``expose`` declarations share one namespace: every declared
-    name becomes available to ``$name`` and ``${name}`` references made
-    afterwards. Only the exposed values are returned.
+    ``var``, ``expose``, ``export env``, and ``import env`` declarations
+    share one namespace: every declared name becomes available to ``$name``
+    and ``${name}`` references made afterwards. ``export env`` statements
+    also write to ``os.environ``. Only exposed and imported values are
+    returned.
     """
     environment: dict[str, object] = {}
     exposed: dict[str, object] = {}
@@ -104,6 +142,38 @@ def evaluate(document: Document) -> dict[str, object]:
                 raise StecTypeError(
                     f"cannot expose {actual_type} value {value!r} "
                     f"as '{declaration.type}' for '{declaration.name}'",
+                    declaration.position,
+                )
+            environment[declaration.name] = value
+            exposed[declaration.name] = value
+        elif isinstance(declaration, ExportEnvDecl):
+            _check_duplicate(declaration.name, declaration.position, environment)
+            value = _eval_expr(declaration.value, environment)
+            os.environ[declaration.name] = _format_value(value)
+            environment[declaration.name] = value
+        elif isinstance(declaration, ImportEnvDecl):
+            _check_duplicate(declaration.name, declaration.position, environment)
+            raw = os.environ.get(declaration.name)
+            if raw is None:
+                if declaration.default is None:
+                    raise StecNameError(
+                        f"environment variable '{declaration.name}' is not set "
+                        "and no default was provided",
+                        declaration.position,
+                    )
+                value = _eval_expr(declaration.default, environment)
+                actual_type = _infer_type(value)
+                if actual_type != declaration.type:
+                    raise StecTypeError(
+                        f"invalid default for '{declaration.name}': expected "
+                        f"'{declaration.type}', got {actual_type} {value!r}",
+                        declaration.position,
+                    )
+            else:
+                value = _coerce_env_value(
+                    declaration.name,
+                    raw,
+                    declaration.type,
                     declaration.position,
                 )
             environment[declaration.name] = value

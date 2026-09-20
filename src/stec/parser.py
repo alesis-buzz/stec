@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 from .nodes import (
     Document,
     ExposeDecl,
+    ExportEnvDecl,
     Expr,
+    ImportEnvDecl,
     Interp,
     Literal,
     Position,
@@ -204,12 +207,18 @@ class _Parser:
 
     def _parse_statement(self):
         token = self._peek()
-        if token.kind == "NAME" and token.value == "expose":
-            return self._parse_expose()
-        if token.kind == "NAME" and token.value == "var":
-            return self._parse_var()
+        if token.kind == "NAME":
+            if token.value == "expose":
+                return self._parse_expose()
+            if token.value == "var":
+                return self._parse_var()
+            if token.value == "export":
+                return self._parse_export_env()
+            if token.value == "import":
+                return self._parse_import_env()
         raise StecSyntaxError(
-            f"expected a declaration ('var' or 'expose'), got {_describe(token)}",
+            "expected a declaration ('var', 'expose', 'export', or 'import'), got "
+            + _describe(token),
             token.position,
         )
 
@@ -238,6 +247,47 @@ class _Parser:
         self._expect("EQUALS", "'='")
         value = self._parse_value()
         return VarDecl(name=name_token.value, value=value, position=keyword.position)
+
+    def _parse_export_env(self) -> ExportEnvDecl:
+        keyword = self._advance()
+        self._expect_env_keyword(keyword.value)
+        name_token = self._expect("NAME", "an environment variable name")
+        self._expect("EQUALS", "'='")
+        value = self._parse_value()
+        return ExportEnvDecl(
+            name=name_token.value, value=value, position=keyword.position
+        )
+
+    def _parse_import_env(self) -> ImportEnvDecl:
+        keyword = self._advance()
+        self._expect_env_keyword(keyword.value)
+        type_token = self._expect("NAME", "a type name")
+        if type_token.value not in _TYPE_NAMES:
+            raise StecSyntaxError(
+                f"unknown type {type_token.value!r}, expected one of: "
+                + ", ".join(_TYPE_NAMES),
+                type_token.position,
+            )
+        name_token = self._expect("NAME", "an environment variable name")
+        default: Optional[Expr] = None
+        if self._peek().kind == "EQUALS":
+            self._advance()
+            default = self._parse_value()
+        return ImportEnvDecl(
+            name=name_token.value,
+            type=type_token.value,
+            default=default,
+            position=keyword.position,
+        )
+
+    def _expect_env_keyword(self, statement: str) -> None:
+        token = self._peek()
+        if token.kind != "NAME" or token.value != "env":
+            raise StecSyntaxError(
+                f"expected 'env' after '{statement}', got {_describe(token)}",
+                token.position,
+            )
+        self._advance()
 
     def _parse_value(self) -> Expr:
         atom = self._parse_atom()
