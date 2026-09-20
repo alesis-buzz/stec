@@ -1,4 +1,4 @@
-"""Abstract syntax tree nodes for konfig documents."""
+"""Abstract syntax tree nodes for stec documents."""
 
 from __future__ import annotations
 

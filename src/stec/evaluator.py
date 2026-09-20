@@ -1,4 +1,4 @@
-"""Evaluation of parsed konfig documents into concrete values."""
+"""Evaluation of parsed stec documents into concrete values."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .nodes import (
     Var,
     VarDecl,
 )
-from .errors import KonfigError, KonfigNameError, KonfigTypeError
+from .errors import StecError, StecNameError, StecTypeError
 
 
 def _infer_type(value: object) -> str:
@@ -25,7 +25,7 @@ def _infer_type(value: object) -> str:
         return "float"
     if isinstance(value, str):
         return "string"
-    raise KonfigError(f"internal error: unsupported value type {type(value).__name__}")
+    raise StecError(f"internal error: unsupported value type {type(value).__name__}")
 
 
 def _format_value(value: object) -> str:
@@ -37,7 +37,7 @@ def _format_value(value: object) -> str:
 
 def _lookup(name: str, position: Position, environment: dict[str, object]) -> object:
     if name not in environment:
-        raise KonfigNameError(
+        raise StecNameError(
             f"undefined name {name!r}; it must be declared before it is used",
             position,
         )
@@ -59,7 +59,7 @@ def _eval_expr(expr: Expr, environment: dict[str, object]) -> object:
     if isinstance(expr, Ternary):
         condition = _eval_expr(expr.condition, environment)
         if _infer_type(condition) != "bool":
-            raise KonfigTypeError(
+            raise StecTypeError(
                 f"ternary condition must be a bool, got "
                 f"{_infer_type(condition)} {condition!r}",
                 expr.position,
@@ -67,7 +67,7 @@ def _eval_expr(expr: Expr, environment: dict[str, object]) -> object:
         if condition:
             return _eval_expr(expr.then, environment)
         return _eval_expr(expr.otherwise, environment)
-    raise KonfigError(
+    raise StecError(
         f"internal error: unsupported expression node {type(expr).__name__}"
     )
 
@@ -78,7 +78,7 @@ def _check_duplicate(
     environment: dict[str, object],
 ) -> None:
     if name in environment:
-        raise KonfigNameError(f"duplicate declaration of {name!r}", position)
+        raise StecNameError(f"duplicate declaration of {name!r}", position)
 
 
 def evaluate(document: Document) -> dict[str, object]:
@@ -101,7 +101,7 @@ def evaluate(document: Document) -> dict[str, object]:
             value = _eval_expr(declaration.value, environment)
             actual_type = _infer_type(value)
             if actual_type != declaration.type:
-                raise KonfigTypeError(
+                raise StecTypeError(
                     f"cannot expose {actual_type} value {value!r} "
                     f"as '{declaration.type}' for '{declaration.name}'",
                     declaration.position,
@@ -109,7 +109,7 @@ def evaluate(document: Document) -> dict[str, object]:
             environment[declaration.name] = value
             exposed[declaration.name] = value
         else:
-            raise KonfigError(
+            raise StecError(
                 f"internal error: unsupported declaration node "
                 f"{type(declaration).__name__}"
             )

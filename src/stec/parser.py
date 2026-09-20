@@ -1,4 +1,4 @@
-"""Tokenizer and recursive-descent parser for the konfig language."""
+"""Tokenizer and recursive-descent parser for the stec language."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .nodes import (
     Var,
     VarDecl,
 )
-from .errors import KonfigSyntaxError
+from .errors import StecSyntaxError
 
 _TOKEN_PATTERN = re.compile(
     r"""
@@ -81,11 +81,11 @@ def tokenize(source: str) -> list[Token]:
             if char == '"':
                 closing = source.find('"', index + 1)
                 if closing == -1 or "\n" in source[index + 1 : closing]:
-                    raise KonfigSyntaxError(
+                    raise StecSyntaxError(
                         "unterminated string literal",
                         _position_at(source, index),
                     )
-            raise KonfigSyntaxError(
+            raise StecSyntaxError(
                 f"unexpected character {char!r}",
                 _position_at(source, index),
             )
@@ -115,7 +115,7 @@ def _decode_escape(body: str, index: int, position: Position) -> tuple[str, int]
     """
     escape = body[index + 1] if index + 1 < len(body) else None
     if escape is None:
-        raise KonfigSyntaxError(
+        raise StecSyntaxError(
             "unterminated escape sequence in string literal", position
         )
     simple = _SIMPLE_ESCAPES.get(escape)
@@ -124,11 +124,11 @@ def _decode_escape(body: str, index: int, position: Position) -> tuple[str, int]
     if escape == "u":
         digits = body[index + 2 : index + 6]
         if len(digits) != 4 or not set(digits) <= _HEX_DIGITS:
-            raise KonfigSyntaxError(
+            raise StecSyntaxError(
                 "invalid \\uXXXX escape sequence in string literal", position
             )
         return chr(int(digits, 16)), index + 6
-    raise KonfigSyntaxError(
+    raise StecSyntaxError(
         f"invalid escape sequence '\\{escape}' in string literal", position
     )
 
@@ -164,14 +164,14 @@ def _parse_string_literal(raw: str, position: Position) -> "str | Interp":
         if char == "$" and index + 1 < length and body[index + 1] == "{":
             name_match = _INTERP_NAME.match(body, index + 2)
             if name_match is None:
-                raise KonfigSyntaxError(
+                raise StecSyntaxError(
                     "missing variable name in '${...}' interpolation",
                     _within(position, index),
                 )
             name = name_match.group(0)
             closing = name_match.end()
             if closing >= length or body[closing] != "}":
-                raise KonfigSyntaxError(
+                raise StecSyntaxError(
                     f"missing '}}' in '${{{name}}}' interpolation",
                     _within(position, index),
                 )
@@ -208,7 +208,7 @@ class _Parser:
             return self._parse_expose()
         if token.kind == "NAME" and token.value == "var":
             return self._parse_var()
-        raise KonfigSyntaxError(
+        raise StecSyntaxError(
             f"expected a declaration ('var' or 'expose'), got {_describe(token)}",
             token.position,
         )
@@ -217,7 +217,7 @@ class _Parser:
         keyword = self._advance()
         type_token = self._expect("NAME", "a type name")
         if type_token.value not in _TYPE_NAMES:
-            raise KonfigSyntaxError(
+            raise StecSyntaxError(
                 f"unknown type {type_token.value!r}, expected one of: "
                 + ", ".join(_TYPE_NAMES),
                 type_token.position,
@@ -282,7 +282,7 @@ class _Parser:
             return Literal(
                 value=token.value == "true", kind="bool", position=token.position
             )
-        raise KonfigSyntaxError(
+        raise StecSyntaxError(
             "expected a value (number, string, bool, or $variable), got "
             + _describe(token),
             token.position,
@@ -302,7 +302,7 @@ class _Parser:
     def _expect(self, kind: str, description: str) -> Token:
         token = self._peek()
         if token.kind != kind:
-            raise KonfigSyntaxError(
+            raise StecSyntaxError(
                 f"expected {description}, got {_describe(token)}",
                 token.position,
             )
@@ -310,5 +310,5 @@ class _Parser:
 
 
 def parse(source: str) -> Document:
-    """Parse konfig source text into a document (a list of declarations)."""
+    """Parse stec source text into a document (a list of declarations)."""
     return _Parser(tokenize(source)).parse_document()

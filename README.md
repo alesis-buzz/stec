@@ -1,9 +1,9 @@
-# konfig
+# stec
 
-Typed, expressive configuration for Python applications — in a tiny, human-friendly
-language, with **zero dependencies**.
+**S**imple, **T**yped, **E**xpressive **C**onfig — a tiny, human-friendly
+configuration language for Python applications, with **zero dependencies**.
 
-```konfig
+```stec
 var dev = true
 
 expose int port = 8080
@@ -12,12 +12,12 @@ expose string url = $dev ? "127.0.0.1" : "0.0.0.0"
 ```
 
 ```python
-from konfig import Konfig
+from stec import Stec
 
-Konfig.load("app.konfig")
+Stec.load("app.stec")
 
-Konfig.port   # 8080
-Konfig.url    # "127.0.0.1"
+Stec.port   # 8080
+Stec.url    # "127.0.0.1"
 ```
 
 No YAML indentation traps, no `.env` string coercion — values are typed and
@@ -26,9 +26,9 @@ with a clear message and a line/column position.
 
 ---
 
-## Why konfig?
+## Why stec?
 
-| Problem with `.env` / plain dicts | How konfig helps |
+| Problem with `.env` / plain dicts | How stec helps |
 | --- | --- |
 | Everything is a string (`PORT="8080"` is a string) | Real types: `int`, `float`, `string`, `bool` |
 | Nothing is validated | Type errors raised at load time, with position |
@@ -45,25 +45,25 @@ And it is just Python — no services, no DSL runtime, no dependencies.
 Requires Python **3.10+**. There are no runtime dependencies.
 
 ```bash
-pip install konfig
+pip install stec
 ```
 
 ---
 
 ## The language
 
-A konfig file is a list of declarations. There are two kinds:
+A stec file is a list of declarations. There are two kinds:
 
 ### `expose` — public, typed values
 
-```konfig
+```stec
 expose int port = 8080
 expose float ratio = 1.5
 expose string name = "my-app"
 expose bool debug = false
 ```
 
-An `expose` declares a value that is published by the `Konfig` singleton.
+An `expose` declares a value that is published by the `Stec` singleton.
 The declared type must match the value:
 
 - `int` — integer literals (`8080`, `0`)
@@ -74,14 +74,14 @@ The declared type must match the value:
 Typing is **strict**: `bool` is not accepted where `int` is expected, and
 `int` is not accepted where `float` is expected. This keeps errors obvious:
 
-```konfig
+```stec
 expose int port = "8080"   # Error: cannot expose string value '8080' as 'int'
 expose float ratio = 1     # Error: cannot expose int value 1 as 'float'
 ```
 
 ### `var` — internal variables
 
-```konfig
+```stec
 var dev = true
 ```
 
@@ -93,7 +93,7 @@ declarations — ideal for environment switches or derived defaults.
 Values can reference previously declared names with `$name`, and any value can
 be made conditional with a ternary:
 
-```konfig
+```stec
 var dev = true
 
 expose string url = $dev ? "127.0.0.1" : "0.0.0.0"
@@ -112,7 +112,7 @@ Rules:
 Strings can embed previously declared names with `${name}` — the value is
 rendered into the text:
 
-```konfig
+```stec
 var host = "localhost"
 
 expose int port = 8080
@@ -131,7 +131,7 @@ expose string mode = "debug=${debug}"   # bools render as true/false
 `#` starts a comment that runs to the end of the line — it can occupy its own
 line or trail a declaration:
 
-```konfig
+```stec
 # runtime switches
 var dev = true  # flip for prod
 
@@ -142,7 +142,7 @@ expose int port = 8080
 
 Strings are double-quoted and support common escape sequences:
 
-```konfig
+```stec
 expose string greeting = "line\nbreak"
 expose string quoted  = "she said \"hi\""
 expose string unicode = "café \u00e9"
@@ -171,12 +171,12 @@ newlines) between tokens is ignored.
 
 ## Using the singleton
 
-`Konfig` is a singleton: every module in your application that imports it gets
+`Stec` is a singleton: every module in your application that imports it gets
 the **same object**. Load once (typically at startup), read anywhere.
 
-### `app.konfig`
+### `app.stec`
 
-```konfig
+```stec
 var dev = true
 
 expose int port = 8080
@@ -187,87 +187,87 @@ expose string url = $dev ? "127.0.0.1" : "0.0.0.0"
 ### `main.py`
 
 ```python
-from konfig import Konfig
+from stec import Stec
 
-Konfig.load("app.konfig")
+Stec.load("app.stec")
 
-Konfig.port            # 8080          (attribute access)
-Konfig["url"]          # "127.0.0.1"   (item access)
-Konfig.get("port")     # 8080          (with optional default)
-Konfig.get("missing")  # None
+Stec.port            # 8080          (attribute access)
+Stec["url"]          # "127.0.0.1"   (item access)
+Stec.get("port")     # 8080          (with optional default)
+Stec.get("missing")  # None
 ```
 
 ### API reference
 
 | Member | Description |
 | --- | --- |
-| `Konfig.load(path, force=False)` | Parse and evaluate the file into the singleton. Returns the singleton itself (chainable). |
-| `Konfig.<name>` | Attribute access to an exposed value. |
-| `Konfig["<name>"]` | Item access to an exposed value. |
-| `Konfig.get(name, default=None)` | Access with a fallback for missing values. |
-| `Konfig.as_dict()` | Copy of all exposed values as a plain `dict`. |
-| `"name" in Konfig` | Check whether a value is exposed. |
-| `Konfig.is_loaded` | `True` once a file has been loaded. |
-| `Konfig.loaded_from` | Path the configuration was loaded from, or `None`. |
-| `Konfig.load(path, force=True)` | Reload, replacing all previous values. |
-| `Konfig.reset()` | Forget the loaded configuration (useful in tests). |
+| `Stec.load(path, force=False)` | Parse and evaluate the file into the singleton. Returns the singleton itself (chainable). |
+| `Stec.<name>` | Attribute access to an exposed value. |
+| `Stec["<name>"]` | Item access to an exposed value. |
+| `Stec.get(name, default=None)` | Access with a fallback for missing values. |
+| `Stec.as_dict()` | Copy of all exposed values as a plain `dict`. |
+| `"name" in Stec` | Check whether a value is exposed. |
+| `Stec.is_loaded` | `True` once a file has been loaded. |
+| `Stec.loaded_from` | Path the configuration was loaded from, or `None`. |
+| `Stec.load(path, force=True)` | Reload, replacing all previous values. |
+| `Stec.reset()` | Forget the loaded configuration (useful in tests). |
 
 Notes:
 
-- Loading twice without `force=True` raises `KonfigAlreadyLoadedError` —
+- Loading twice without `force=True` raises `StecAlreadyLoadedError` —
   silent double-loading usually hides a bug, so it is treated as one.
 - A failed load leaves the singleton **unloaded**: fix the file and load again.
 - Only `expose` declarations are published; `var` values stay internal.
-- `repr(Konfig)` shows the loaded path and key names, but never values —
+- `repr(Stec)` shows the loaded path and key names, but never values —
   safe to log even if the configuration contains secrets.
 
 ```python
-Konfig.load("app.konfig")
-print(Konfig)   # Konfig(loaded_from='app.konfig', keys=['port', 'secret', 'url'])
+Stec.load("app.stec")
+print(Stec)   # Stec(loaded_from='app.stec', keys=['port', 'secret', 'url'])
 ```
 
 ---
 
 ## Error handling
 
-All errors derive from `KonfigError`, so catching that single type is enough
+All errors derive from `StecError`, so catching that single type is enough
 for a top-level handler. Errors raised while parsing or evaluating include a
 `line`/`column` position, and their messages display it.
 
 ```python
-from konfig import Konfig, KonfigError
+from stec import Stec, StecError
 
 try:
-    Konfig.load("app.konfig")
-except KonfigError as error:
+    Stec.load("app.stec")
+except StecError as error:
     print(error)  # e.g. "cannot expose string value 'abc' as 'int' for 'port' at line 4, column 1"
 ```
 
 | Exception | Raised when |
 | --- | --- |
-| `KonfigError` | Base class for everything konfig raises. |
-| `KonfigSyntaxError` | The file cannot be tokenized or parsed. |
-| `KonfigTypeError` | A value does not match the declared `expose` type, or a ternary condition is not a `bool`. |
-| `KonfigNameError` | A `$variable` is undefined or a name is declared twice. |
-| `KonfigLoadError` | The file cannot be read or decoded (missing file, bad UTF-8...). |
-| `KonfigAlreadyLoadedError` | `load()` is called twice without `force=True`. |
+| `StecError` | Base class for everything stec raises. |
+| `StecSyntaxError` | The file cannot be tokenized or parsed. |
+| `StecTypeError` | A value does not match the declared `expose` type, or a ternary condition is not a `bool`. |
+| `StecNameError` | A `$variable` is undefined or a name is declared twice. |
+| `StecLoadError` | The file cannot be read or decoded (missing file, bad UTF-8...). |
+| `StecAlreadyLoadedError` | `load()` is called twice without `force=True`. |
 
-```konfig
+```stec
 expose int port = 8080
 expose int port = 9090
 ```
 
 ```text
-KonfigNameError: duplicate declaration of 'port' at line 2, column 1
+StecNameError: duplicate declaration of 'port' at line 2, column 1
 ```
 
 ---
 
 ## Quick example
 
-### `app.konfig`
+### `app.stec`
 
-```konfig
+```stec
 # runtime switches
 var dev = true  # flip for prod
 
@@ -282,11 +282,11 @@ expose string database_url = $dev
 ### `main.py`
 
 ```python
-from konfig import Konfig
+from stec import Stec
 
-Konfig.load("app.konfig")
+Stec.load("app.stec")
 
-for key, value in Konfig.as_dict().items():
+for key, value in Stec.as_dict().items():
     print(f"{key} = {value!r}")
 ```
 
@@ -302,8 +302,8 @@ database_url = 'postgres://localhost:5432/app?pool=10'
 ## Development
 
 ```bash
-git clone https://github.com/<you>/konfig.git
-cd konfig
+git clone https://github.com/<you>/stec.git
+cd stec
 pip install -e ".[dev]"
 pytest
 ```
@@ -311,13 +311,13 @@ pytest
 ### Project layout
 
 ```text
-src/konfig/
+src/stec/
 ├── nodes.py       # AST node dataclasses (Position, Literal, Ternary, ...)
 ├── parser.py      # hand-written tokenizer + recursive-descent parser
 ├── evaluator.py   # ordered evaluation and type checking
-├── config.py      # the Konfig singleton
+├── config.py      # the Stec singleton
 ├── errors.py      # exception hierarchy
-└── main.py        # small playground (python src/konfig/main.py)
+└── main.py        # small playground (python src/stec/main.py)
 
 tests/             # pytest suite (parser, evaluator, singleton)
 ```
@@ -331,7 +331,7 @@ ships with zero runtime dependencies.
 
 - [x] Comments (`#` to end of line)
 - [x] String interpolation: `"postgres://localhost:${port}"`
-- [ ] Environment overrides (`KONFIG_PORT` beats `port`)
+- [ ] Environment overrides (`STEC_PORT` beats `port`)
 
 ## License
 

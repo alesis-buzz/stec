@@ -1,4 +1,4 @@
-"""The Konfig singleton: load once, read everywhere."""
+"""The Stec singleton: load once, read everywhere."""
 
 from __future__ import annotations
 
@@ -6,31 +6,31 @@ import threading
 from pathlib import Path
 from typing import Any, Optional
 
-from .errors import KonfigAlreadyLoadedError, KonfigLoadError
+from .errors import StecAlreadyLoadedError, StecLoadError
 from .evaluator import evaluate
 from .parser import parse
 
 
-class Konfig:
+class Stec:
     """Singleton registry of exposed configuration values.
 
-    Calling ``Konfig()`` always returns the same shared object. The package
+    Calling ``Stec()`` always returns the same shared object. The package
     exports one ready-made instance, so the usual usage is simply::
 
-        from konfig import Konfig
+        from stec import Stec
 
-        Konfig.load("app.konfig")
+        Stec.load("app.stec")
 
-        Konfig.port          # attribute access
-        Konfig["port"]       # item access
-        Konfig.get("port")   # with optional default
-        Konfig.as_dict()     # full snapshot
+        Stec.port          # attribute access
+        Stec["port"]       # item access
+        Stec.get("port")   # with optional default
+        Stec.as_dict()     # full snapshot
     """
 
-    _instance: Optional["Konfig"] = None
+    _instance: Optional["Stec"] = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> "Konfig":
+    def __new__(cls) -> "Stec":
         with cls._lock:
             if cls._instance is None:
                 instance = super().__new__(cls)
@@ -39,15 +39,15 @@ class Konfig:
                 cls._instance = instance
         return cls._instance
 
-    def load(self, path: str | Path, force: bool = False) -> "Konfig":
+    def load(self, path: str | Path, force: bool = False) -> "Stec":
         """Parse and evaluate the file at *path* into the singleton.
 
-        Raises ``KonfigAlreadyLoadedError`` if the configuration was already
+        Raises ``StecAlreadyLoadedError`` if the configuration was already
         loaded unless *force* is set, which reloads it in place.
         """
-        with Konfig._lock:
+        with Stec._lock:
             if self._loaded_from is not None and not force:
-                raise KonfigAlreadyLoadedError(
+                raise StecAlreadyLoadedError(
                     f"configuration already loaded from '{self._loaded_from}'; "
                     "pass force=True to reload"
                 )
@@ -63,14 +63,14 @@ class Konfig:
         try:
             return Path(path).read_text(encoding="utf-8")
         except UnicodeDecodeError as error:
-            raise KonfigLoadError(f"cannot decode '{path}': not valid UTF-8") from error
+            raise StecLoadError(f"cannot decode '{path}': not valid UTF-8") from error
         except OSError as error:
             reason = error.strerror or error.__class__.__name__
-            raise KonfigLoadError(f"cannot read '{path}': {reason}") from error
+            raise StecLoadError(f"cannot read '{path}': {reason}") from error
 
     def reset(self) -> None:
         """Forget the loaded configuration (mainly useful in tests)."""
-        with Konfig._lock:
+        with Stec._lock:
             self._values = {}
             self._loaded_from = None
 
@@ -99,14 +99,14 @@ class Konfig:
         try:
             return self._values[name]
         except KeyError:
-            raise KeyError(f"konfig has no exposed value named {name!r}") from None
+            raise KeyError(f"stec has no exposed value named {name!r}") from None
 
     def __getattr__(self, name: str) -> Any:
         values = self.__dict__.get("_values", {})
         if name in values:
             return values[name]
-        raise AttributeError(f"konfig has no exposed value named {name!r}")
+        raise AttributeError(f"stec has no exposed value named {name!r}")
 
     def __repr__(self) -> str:
         keys = sorted(self._values)
-        return f"Konfig(loaded_from={self._loaded_from!r}, keys={keys!r})"
+        return f"Stec(loaded_from={self._loaded_from!r}, keys={keys!r})"

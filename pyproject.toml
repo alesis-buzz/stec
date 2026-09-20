@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "konfig"
+name = "stec"
 version = "0.1.0"
-description = "Typed, expressive configuration easy to use."
+description = "Simple, Typed, Expressive Config."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MPL-2.0"
 license-files = ["LICENSE"]
-keywords = ["configuration", "config", "environment", "dotenv", "types", "typed"]
+keywords = ["stec", "configuration", "config", "environment", "dotenv", "types", "typed"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -29,7 +29,7 @@ dependencies = []
 dev = ["pytest>=8.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/konfig"]
+packages = ["src/stec"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

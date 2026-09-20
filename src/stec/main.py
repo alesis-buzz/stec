@@ -3,9 +3,9 @@
 from pathlib import Path
 import tempfile
 
-from konfig import Konfig
-from konfig.evaluator import evaluate
-from konfig.parser import parse
+from stec import Stec
+from stec.evaluator import evaluate
+from stec.parser import parse
 
 SOURCE = """
 # runtime switches
@@ -25,11 +25,11 @@ def main() -> None:
     print(evaluate(parse(SOURCE)))
 
     with tempfile.TemporaryDirectory() as directory:
-        path = Path(directory) / "app.konfig"
+        path = Path(directory) / "app.stec"
         path.write_text(SOURCE, encoding="utf-8")
-        Konfig.load(path)
-        print(Konfig.as_dict())
-        print(Konfig.api, Konfig["port"], Konfig.get("secret"))
+        Stec.load(path)
+        print(Stec.as_dict())
+        print(Stec.api, Stec["port"], Stec.get("secret"))
 
 
 if __name__ == "__main__":

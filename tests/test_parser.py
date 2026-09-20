@@ -2,9 +2,9 @@
 
 import pytest
 
-from konfig.nodes import ExposeDecl, Interp, Literal, Ternary, Var, VarDecl
-from konfig.errors import KonfigSyntaxError
-from konfig.parser import parse, tokenize
+from stec.nodes import ExposeDecl, Interp, Literal, Ternary, Var, VarDecl
+from stec.errors import StecSyntaxError
+from stec.parser import parse, tokenize
 
 
 def test_tokenize_kinds():
@@ -112,7 +112,7 @@ def test_empty_and_whitespace_documents():
 
 
 def test_unexpected_character_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("var dev = @")
     assert "unexpected character '@'" in str(error.value)
     assert error.value.position.line == 1
@@ -120,53 +120,53 @@ def test_unexpected_character_error():
 
 
 def test_unterminated_string_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse('expose string s = "abc')
     assert "unterminated string literal" in str(error.value)
     assert error.value.position.line == 1
 
 
 def test_invalid_escape_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse(r'expose string s = "bad\qescape"')
     assert "invalid escape sequence '\\q'" in str(error.value)
 
 
 def test_unknown_type_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("expose integer port = 8080")
     assert "unknown type 'integer'" in str(error.value)
     assert "int, float, string, bool" in str(error.value)
 
 
 def test_missing_equals_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("var dev 1\n")
     assert "expected '=', got '1'" in str(error.value)
     assert error.value.position.line == 1
 
 
 def test_missing_value_error_position():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("var dev =\nvar other = 1")
     assert error.value.position.line == 2
     assert error.value.position.column == 1
 
 
 def test_declaration_keyword_missing():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("port = 8080")
     assert "expected a declaration" in str(error.value)
 
 
 def test_missing_colon_in_ternary():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("var x = true ? 1 2")
     assert "expected ':'" in str(error.value)
 
 
 def test_trailing_garbage_after_value():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse("var dev = true false")
     assert "expected a declaration" in str(error.value)
 
@@ -224,13 +224,13 @@ def test_adjacent_interpolations_merge_nothing():
 
 
 def test_unclosed_interpolation_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse('expose string s = "${port"')
     assert "missing '}' in '${port}' interpolation" in str(error.value)
     assert error.value.position.column == 20
 
 
 def test_missing_interpolation_name_error():
-    with pytest.raises(KonfigSyntaxError) as error:
+    with pytest.raises(StecSyntaxError) as error:
         parse('expose string s = "${}"')
     assert "missing variable name" in str(error.value)

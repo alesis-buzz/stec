@@ -2,9 +2,9 @@
 
 import pytest
 
-from konfig.errors import KonfigNameError, KonfigTypeError
-from konfig.evaluator import evaluate
-from konfig.parser import parse
+from stec.errors import StecNameError, StecTypeError
+from stec.evaluator import evaluate
+from stec.parser import parse
 
 SAMPLE = """
 var dev = true
@@ -48,37 +48,37 @@ def test_all_types_round_trip():
 
 
 def test_type_mismatch_int_gets_string():
-    with pytest.raises(KonfigTypeError) as error:
+    with pytest.raises(StecTypeError) as error:
         evaluate(parse('expose int port = "abc"'))
     assert "cannot expose string value 'abc' as 'int' for 'port'" in str(error.value)
 
 
 def test_bool_is_not_a_valid_int():
-    with pytest.raises(KonfigTypeError) as error:
+    with pytest.raises(StecTypeError) as error:
         evaluate(parse("expose int port = true"))
     assert "cannot expose bool value True as 'int'" in str(error.value)
 
 
 def test_int_is_not_a_valid_float():
-    with pytest.raises(KonfigTypeError) as error:
+    with pytest.raises(StecTypeError) as error:
         evaluate(parse("expose float ratio = 1"))
     assert "cannot expose int value 1 as 'float'" in str(error.value)
 
 
 def test_type_error_reports_position():
-    with pytest.raises(KonfigTypeError) as error:
+    with pytest.raises(StecTypeError) as error:
         evaluate(parse('var ok = true\nexpose int port = "abc"'))
     assert error.value.position.line == 2
 
 
 def test_undefined_variable():
-    with pytest.raises(KonfigNameError) as error:
+    with pytest.raises(StecNameError) as error:
         evaluate(parse('expose string url = $missing ? "a" : "b"'))
     assert "undefined name 'missing'" in str(error.value)
 
 
 def test_variable_must_be_declared_before_use():
-    with pytest.raises(KonfigNameError) as error:
+    with pytest.raises(StecNameError) as error:
         evaluate(parse(
             """
             expose string url = $dev ? "a" : "b"
@@ -89,19 +89,19 @@ def test_variable_must_be_declared_before_use():
 
 
 def test_duplicate_var_declaration():
-    with pytest.raises(KonfigNameError) as error:
+    with pytest.raises(StecNameError) as error:
         evaluate(parse("var dev = true\nvar dev = false"))
     assert "duplicate declaration of 'dev'" in str(error.value)
 
 
 def test_var_and_expose_share_a_namespace():
-    with pytest.raises(KonfigNameError) as error:
+    with pytest.raises(StecNameError) as error:
         evaluate(parse("var port = 1\nexpose int port = 8080"))
     assert "duplicate declaration of 'port'" in str(error.value)
 
 
 def test_ternary_condition_must_be_bool():
-    with pytest.raises(KonfigTypeError) as error:
+    with pytest.raises(StecTypeError) as error:
         evaluate(parse('expose string url = 1 ? "a" : "b"'))
     assert "ternary condition must be a bool, got int 1" in str(error.value)
 
@@ -125,7 +125,7 @@ def test_nested_ternary_evaluation():
 
 
 def test_late_take_branch_still_checked_by_expose_type():
-    with pytest.raises(KonfigTypeError):
+    with pytest.raises(StecTypeError):
         evaluate(parse('var dev = false\nexpose string url = $dev ? "a" : 2'))
 
 def test_interpolation_joins_chunks_and_references():
@@ -192,7 +192,7 @@ def test_interpolation_can_reference_earlier_exposes():
 
 
 def test_interpolation_cannot_reference_later_declarations():
-    with pytest.raises(KonfigNameError) as error:
+    with pytest.raises(StecNameError) as error:
         evaluate(parse(
             """
             expose string url = "http://localhost:${port}"
@@ -203,7 +203,7 @@ def test_interpolation_cannot_reference_later_declarations():
 
 
 def test_undefined_name_inside_interpolation_reports_string_position():
-    with pytest.raises(KonfigNameError) as error:
+    with pytest.raises(StecNameError) as error:
         evaluate(parse('expose string url = "http://${missing}/"'))
     assert error.value.position.column == 29
 

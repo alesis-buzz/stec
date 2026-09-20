@@ -1,4 +1,4 @@
-"""Custom exceptions raised by konfig."""
+"""Custom exceptions raised by stec."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ def _format_location(position: Optional[Position]) -> str:
     return f" at line {position.line}, column {position.column}"
 
 
-class KonfigError(Exception):
-    """Base class for every error raised by konfig."""
+class StecError(Exception):
+    """Base class for every error raised by stec."""
 
     def __init__(self, message: str, position: Optional[Position] = None) -> None:
         super().__init__(f"{message}{_format_location(position)}")
@@ -22,21 +22,21 @@ class KonfigError(Exception):
         self.position = position
 
 
-class KonfigSyntaxError(KonfigError):
+class StecSyntaxError(StecError):
     """Raised when the source text cannot be tokenized or parsed."""
 
 
-class KonfigTypeError(KonfigError):
+class StecTypeError(StecError):
     """Raised when a value does not match the type declared on ``expose``."""
 
 
-class KonfigNameError(KonfigError):
+class StecNameError(StecError):
     """Raised for undefined variable references or duplicate declarations."""
 
 
-class KonfigLoadError(KonfigError):
+class StecLoadError(StecError):
     """Raised when the configuration file cannot be read."""
 
 
-class KonfigAlreadyLoadedError(KonfigError):
-    """Raised when ``Konfig.load`` is called twice without ``force=True``."""
+class StecAlreadyLoadedError(StecError):
+    """Raised when ``Stec.load`` is called twice without ``force=True``."""
