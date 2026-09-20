@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "konfig"
 version = "0.1.0"
-description = "Typed, expressive configuration with environment overrides"
+description = "Typed, expressive configuration easy to use."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MPL-2.0"
