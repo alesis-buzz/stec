@@ -44,7 +44,18 @@ class Ternary:
     position: Position
 
 
-Expr = Union[Literal, Var, Ternary]
+@dataclass(frozen=True)
+class Interp:
+    """A string containing ``${name}`` interpolations.
+
+    ``parts`` alternates literal string chunks and variable references.
+    """
+
+    parts: tuple[Union[str, Var], ...]
+    position: Position
+
+
+Expr = Union[Literal, Var, Ternary, Interp]
 
 
 @dataclass(frozen=True)

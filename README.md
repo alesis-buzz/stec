@@ -90,7 +90,7 @@ declarations — ideal for environment switches or derived defaults.
 
 ### `$variables` and ternaries
 
-Values can reference previously declared vars with `$name`, and any value can
+Values can reference previously declared names with `$name`, and any value can
 be made conditional with a ternary:
 
 ```konfig
@@ -106,8 +106,37 @@ Rules:
 - Ternaries are lazy: only the branch that is taken is evaluated.
 - `$name` must be declared **before** it is used.
 - Variables can be chained: `cond ? $a ? 1 : 2 : 3`.
-- Variables cannot be referenced *inside* strings yet — `"${port}"` stays
-  literal text (see the roadmap).
+
+### Interpolation
+
+Strings can embed previously declared names with `${name}` — the value is
+rendered into the text:
+
+```konfig
+var host = "localhost"
+
+expose int port = 8080
+expose string url = "http://${host}:${port}/"
+expose string mode = "debug=${debug}"   # bools render as true/false
+```
+
+- Any name declared before the string can be interpolated, including
+  other `expose` values.
+- `${name}` must be declared **before** the string that uses it.
+- Bools render as `true`/`false`, numbers render as written (`1.5`).
+- To include a literal `${...}` in a string, escape the dollar: `"\${price}"`.
+
+### Comments
+
+`#` starts a comment that runs to the end of the line — it can occupy its own
+line or trail a declaration:
+
+```konfig
+# runtime switches
+var dev = true  # flip for prod
+
+expose int port = 8080
+```
 
 ### Strings
 
@@ -129,6 +158,7 @@ expose string unicode = "café \u00e9"
 | `\0` | null character |
 | `\b` | backspace |
 | `\f` | form feed |
+| `\$` | dollar sign (prevents `${...}` interpolation) |
 | `\uXXXX` | unicode code point (4 hex digits) |
 
 ### Names
@@ -238,15 +268,15 @@ KonfigNameError: duplicate declaration of 'port' at line 2, column 1
 ### `app.konfig`
 
 ```konfig
-var dev = true
-var db_pool = 10
+# runtime switches
+var dev = true  # flip for prod
 
 expose int port = 8080
-expose int pool = $db_pool
+expose int pool = 10
 expose bool debug = $dev
 expose string database_url = $dev
-    ? "postgres://localhost:5432/app"
-    : "postgres://db.internal:5432/app"
+    ? "postgres://localhost:5432/app?pool=${pool}"
+    : "postgres://db.internal:5432/app?pool=${pool}"
 ```
 
 ### `main.py`
@@ -264,7 +294,7 @@ for key, value in Konfig.as_dict().items():
 port = 8080
 pool = 10
 debug = True
-database_url = 'postgres://localhost:5432/app'
+database_url = 'postgres://localhost:5432/app?pool=10'
 ```
 
 ---
@@ -299,8 +329,8 @@ ships with zero runtime dependencies.
 
 ## Roadmap
 
-- [ ] Comments (`#` to end of line)
-- [ ] String interpolation: `"postgres://localhost:${port}"`
+- [x] Comments (`#` to end of line)
+- [x] String interpolation: `"postgres://localhost:${port}"`
 - [ ] Environment overrides (`KONFIG_PORT` beats `port`)
 
 ## License

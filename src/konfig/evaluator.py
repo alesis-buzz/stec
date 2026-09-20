@@ -6,6 +6,7 @@ from .nodes import (
     Document,
     ExposeDecl,
     Expr,
+    Interp,
     Literal,
     Position,
     Ternary,
@@ -13,8 +14,6 @@ from .nodes import (
     VarDecl,
 )
 from .errors import KonfigError, KonfigNameError, KonfigTypeError
-
-_TYPE_NAMES = ("int", "float", "string", "bool")
 
 
 def _infer_type(value: object) -> str:
@@ -29,18 +28,36 @@ def _infer_type(value: object) -> str:
     raise KonfigError(f"internal error: unsupported value type {type(value).__name__}")
 
 
-def _eval_expr(expr: Expr, variables: dict[str, object]) -> object:
+def _format_value(value: object) -> str:
+    """Render a value for string interpolation."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _lookup(name: str, position: Position, environment: dict[str, object]) -> object:
+    if name not in environment:
+        raise KonfigNameError(
+            f"undefined name {name!r}; it must be declared before it is used",
+            position,
+        )
+    return environment[name]
+
+
+def _eval_expr(expr: Expr, environment: dict[str, object]) -> object:
     if isinstance(expr, Literal):
         return expr.value
     if isinstance(expr, Var):
-        if expr.name not in variables:
-            raise KonfigNameError(
-                f"undefined variable {expr.name!r}; vars must be declared before use",
-                expr.position,
-            )
-        return variables[expr.name]
+        return _lookup(expr.name, expr.position, environment)
+    if isinstance(expr, Interp):
+        return "".join(
+            piece
+            if isinstance(piece, str)
+            else _format_value(_eval_expr(piece, environment))
+            for piece in expr.parts
+        )
     if isinstance(expr, Ternary):
-        condition = _eval_expr(expr.condition, variables)
+        condition = _eval_expr(expr.condition, environment)
         if _infer_type(condition) != "bool":
             raise KonfigTypeError(
                 f"ternary condition must be a bool, got "
@@ -48,28 +65,40 @@ def _eval_expr(expr: Expr, variables: dict[str, object]) -> object:
                 expr.position,
             )
         if condition:
-            return _eval_expr(expr.then, variables)
-        return _eval_expr(expr.otherwise, variables)
+            return _eval_expr(expr.then, environment)
+        return _eval_expr(expr.otherwise, environment)
     raise KonfigError(
         f"internal error: unsupported expression node {type(expr).__name__}"
     )
 
 
+def _check_duplicate(
+    name: str,
+    position: Position,
+    environment: dict[str, object],
+) -> None:
+    if name in environment:
+        raise KonfigNameError(f"duplicate declaration of {name!r}", position)
+
+
 def evaluate(document: Document) -> dict[str, object]:
     """Evaluate a document in order and return the exposed values.
 
-    ``var`` declarations go into an internal environment used to resolve
-    ``$name`` references and are not part of the returned mapping.
+    ``var`` and ``expose`` declarations share one namespace: every declared
+    name becomes available to ``$name`` and ``${name}`` references made
+    afterwards. Only the exposed values are returned.
     """
-    variables: dict[str, object] = {}
+    environment: dict[str, object] = {}
     exposed: dict[str, object] = {}
     for declaration in document:
         if isinstance(declaration, VarDecl):
-            _check_duplicate(declaration.name, declaration.position, variables, exposed)
-            variables[declaration.name] = _eval_expr(declaration.value, variables)
+            _check_duplicate(declaration.name, declaration.position, environment)
+            environment[declaration.name] = _eval_expr(
+                declaration.value, environment
+            )
         elif isinstance(declaration, ExposeDecl):
-            _check_duplicate(declaration.name, declaration.position, variables, exposed)
-            value = _eval_expr(declaration.value, variables)
+            _check_duplicate(declaration.name, declaration.position, environment)
+            value = _eval_expr(declaration.value, environment)
             actual_type = _infer_type(value)
             if actual_type != declaration.type:
                 raise KonfigTypeError(
@@ -77,6 +106,7 @@ def evaluate(document: Document) -> dict[str, object]:
                     f"as '{declaration.type}' for '{declaration.name}'",
                     declaration.position,
                 )
+            environment[declaration.name] = value
             exposed[declaration.name] = value
         else:
             raise KonfigError(
@@ -84,13 +114,3 @@ def evaluate(document: Document) -> dict[str, object]:
                 f"{type(declaration).__name__}"
             )
     return exposed
-
-
-def _check_duplicate(
-    name: str,
-    position: Position,
-    variables: dict[str, object],
-    exposed: dict[str, object],
-) -> None:
-    if name in variables or name in exposed:
-        raise KonfigNameError(f"duplicate declaration of {name!r}", position)

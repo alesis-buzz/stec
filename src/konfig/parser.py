@@ -9,6 +9,7 @@ from .nodes import (
     Document,
     ExposeDecl,
     Expr,
+    Interp,
     Literal,
     Position,
     Ternary,
@@ -20,6 +21,7 @@ from .errors import KonfigSyntaxError
 _TOKEN_PATTERN = re.compile(
     r"""
       (?P<WS>\s+)
+    | (?P<COMMENT>\#[^\n]*)
     | (?P<FLOAT>\d+\.\d+)
     | (?P<INT>\d+)
     | (?P<STRING>"(?:\\.|[^"\\\n])*")
@@ -45,7 +47,10 @@ _SIMPLE_ESCAPES = {
     "0": "\0",
     "b": "\b",
     "f": "\f",
+    "$": "$",
 }
+
+_INTERP_NAME = re.compile(r"[A-Za-z_]\w*")
 
 
 @dataclass(frozen=True)
@@ -84,7 +89,7 @@ def tokenize(source: str) -> list[Token]:
                 f"unexpected character {char!r}",
                 _position_at(source, index),
             )
-        if match.lastgroup != "WS":
+        if match.lastgroup not in ("WS", "COMMENT"):
             tokens.append(
                 Token(
                     kind=match.lastgroup,
@@ -103,40 +108,87 @@ def _describe(token: Token) -> str:
     return repr(token.value)
 
 
-def _unescape_string(raw: str, position: Position) -> str:
-    """Decode the escape sequences of a quoted string literal."""
-    body = raw[1:-1]
-    pieces: list[str] = []
-    index = 0
-    while index < len(body):
-        char = body[index]
-        if char != "\\":
-            pieces.append(char)
-            index += 1
-            continue
-        escape = body[index + 1] if index + 1 < len(body) else None
-        if escape is None:
-            raise KonfigSyntaxError(
-                "unterminated escape sequence in string literal", position
-            )
-        simple = _SIMPLE_ESCAPES.get(escape)
-        if simple is not None:
-            pieces.append(simple)
-            index += 2
-            continue
-        if escape == "u":
-            digits = body[index + 2 : index + 6]
-            if len(digits) != 4 or not set(digits) <= _HEX_DIGITS:
-                raise KonfigSyntaxError(
-                    "invalid \\uXXXX escape sequence in string literal", position
-                )
-            pieces.append(chr(int(digits, 16)))
-            index += 6
-            continue
+def _decode_escape(body: str, index: int, position: Position) -> tuple[str, int]:
+    """Decode the escape sequence starting at ``body[index]`` (the backslash).
+
+    Returns the decoded text and the index just after the escape.
+    """
+    escape = body[index + 1] if index + 1 < len(body) else None
+    if escape is None:
         raise KonfigSyntaxError(
-            f"invalid escape sequence '\\{escape}' in string literal", position
+            "unterminated escape sequence in string literal", position
         )
-    return "".join(pieces)
+    simple = _SIMPLE_ESCAPES.get(escape)
+    if simple is not None:
+        return simple, index + 2
+    if escape == "u":
+        digits = body[index + 2 : index + 6]
+        if len(digits) != 4 or not set(digits) <= _HEX_DIGITS:
+            raise KonfigSyntaxError(
+                "invalid \\uXXXX escape sequence in string literal", position
+            )
+        return chr(int(digits, 16)), index + 6
+    raise KonfigSyntaxError(
+        f"invalid escape sequence '\\{escape}' in string literal", position
+    )
+
+
+def _within(token_position: Position, body_index: int) -> Position:
+    """Map an index inside a string token body to a source position."""
+    return Position(
+        line=token_position.line,
+        column=token_position.column + 1 + body_index,
+    )
+
+
+def _parse_string_literal(raw: str, position: Position) -> "str | Interp":
+    """Decode a quoted string literal, resolving ``${name}`` interpolations.
+
+    Returns a plain string when there is nothing to interpolate, and an
+    ``Interp`` node otherwise.
+    """
+    body = raw[1:-1]
+    parts: list["str | Var"] = []
+    text: list[str] = []
+    index = 0
+    length = len(body)
+    interpolating = False
+    while index < length:
+        char = body[index]
+        if char == "\\":
+            decoded, index = _decode_escape(
+                body, index, _within(position, index)
+            )
+            text.append(decoded)
+            continue
+        if char == "$" and index + 1 < length and body[index + 1] == "{":
+            name_match = _INTERP_NAME.match(body, index + 2)
+            if name_match is None:
+                raise KonfigSyntaxError(
+                    "missing variable name in '${...}' interpolation",
+                    _within(position, index),
+                )
+            name = name_match.group(0)
+            closing = name_match.end()
+            if closing >= length or body[closing] != "}":
+                raise KonfigSyntaxError(
+                    f"missing '}}' in '${{{name}}}' interpolation",
+                    _within(position, index),
+                )
+            interpolating = True
+            if text:
+                parts.append("".join(text))
+                text = []
+            parts.append(Var(name=name, position=_within(position, index)))
+            index = closing + 1
+            continue
+        text.append(char)
+        index += 1
+    if not interpolating:
+        return "".join(text)
+    if text:
+        parts.append("".join(text))
+    return Interp(parts=tuple(parts), position=position)
 
 
 class _Parser:
@@ -214,8 +266,11 @@ class _Parser:
             )
         if token.kind == "STRING":
             self._advance()
+            string_value = _parse_string_literal(token.value, token.position)
+            if isinstance(string_value, Interp):
+                return string_value
             return Literal(
-                value=_unescape_string(token.value, token.position),
+                value=string_value,
                 kind="string",
                 position=token.position,
             )
