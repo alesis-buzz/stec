@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "stec"
-version = "0.1.0"
+version = "0.2.1"
 description = "Simple, Typed, Expressive Config."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://alesis.buzz"
+Repository = "https://github.com/alesis-buzz/stec"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
