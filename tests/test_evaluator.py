@@ -227,3 +227,108 @@ def test_comments_and_interpolation_together():
         "port": 8080,
         "api": "http://127.0.0.1:8080/api",
     }
+
+import os
+
+import pytest
+
+
+@pytest.fixture()
+def guarded_env():
+    """Snapshot os.environ and restore it after the test.
+
+    ``export env`` writes to os.environ directly, so a snapshot is the only
+    reliable way to undo its side effects.
+    """
+    snapshot = dict(os.environ)
+    yield
+    os.environ.clear()
+    os.environ.update(snapshot)
+
+
+def test_export_env_writes_to_environment(guarded_env):
+    values = evaluate(parse('export env STEC_TEST_FLAG = "hello"'))
+    assert values == {}
+    assert os.environ["STEC_TEST_FLAG"] == "hello"
+
+
+def test_export_env_formats_bools_and_numbers(guarded_env):
+    evaluate(parse("export env STEC_TEST_N = 5\nexport env STEC_TEST_B = true"))
+    assert os.environ["STEC_TEST_N"] == "5"
+    assert os.environ["STEC_TEST_B"] == "true"
+
+
+def test_exported_names_are_usable_later(guarded_env):
+    values = evaluate(
+        parse(
+            'export env STEC_TEST_BASE = "http://x"\n'
+            'expose string url = "${STEC_TEST_BASE}/api"'
+        )
+    )
+    assert values == {"url": "http://x/api"}
+
+
+def test_export_env_is_not_published(guarded_env):
+    values = evaluate(parse("var n = 2\nexport env STEC_TEST_N = 5"))
+    assert "STEC_TEST_N" not in values
+    assert "n" not in values
+
+
+def test_import_env_reads_existing_environment(guarded_env):
+    os.environ["STEC_TEST_PORT"] = "9090"
+    values = evaluate(parse("import env int STEC_TEST_PORT = 1"))
+    assert values == {"STEC_TEST_PORT": 9090}
+
+
+def test_import_env_uses_default_when_missing(guarded_env):
+    os.environ.pop("STEC_TEST_MISSING", None)
+    values = evaluate(parse('import env string STEC_TEST_MISSING = "fallback"'))
+    assert values == {"STEC_TEST_MISSING": "fallback"}
+
+
+def test_import_env_without_default_and_missing_raises(guarded_env):
+    os.environ.pop("STEC_TEST_MISSING", None)
+    with pytest.raises(StecNameError) as error:
+        evaluate(parse("import env string STEC_TEST_MISSING"))
+    assert "environment variable 'STEC_TEST_MISSING' is not set" in str(error.value)
+
+
+def test_import_env_coercion_failure(guarded_env):
+    os.environ["STEC_TEST_NOT_A_NUMBER"] = "abc"
+    with pytest.raises(StecTypeError) as error:
+        evaluate(parse("import env int STEC_TEST_NOT_A_NUMBER = 0"))
+    assert "not a valid 'int'" in str(error.value)
+
+
+def test_import_env_bool_coercion_is_case_insensitive(guarded_env):
+    os.environ["STEC_TEST_B1"] = "true"
+    os.environ["STEC_TEST_B2"] = "FALSE"
+    values = evaluate(
+        parse("import env bool STEC_TEST_B1\nimport env bool STEC_TEST_B2")
+    )
+    assert values == {"STEC_TEST_B1": True, "STEC_TEST_B2": False}
+
+
+def test_import_env_invalid_bool_raises(guarded_env):
+    os.environ["STEC_TEST_B3"] = "yes"
+    with pytest.raises(StecTypeError) as error:
+        evaluate(parse("import env bool STEC_TEST_B3"))
+    assert "not a valid 'bool'" in str(error.value)
+
+
+def test_import_env_default_type_must_match():
+    with pytest.raises(StecTypeError) as error:
+        evaluate(parse('import env int STEC_TEST_PORT = "abc"'))
+    assert "invalid default for 'STEC_TEST_PORT'" in str(error.value)
+
+
+def test_export_and_var_share_a_namespace():
+    with pytest.raises(StecNameError) as error:
+        evaluate(parse("var X = 1\nexport env X = 2"))
+    assert "duplicate declaration of 'X'" in str(error.value)
+
+
+def test_import_and_expose_share_a_namespace():
+    with pytest.raises(StecNameError) as error:
+        evaluate(parse('import env string X = "d"\nexpose string X = "e"'))
+    assert "duplicate declaration of 'X'" in str(error.value)

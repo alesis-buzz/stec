@@ -6,6 +6,7 @@ from stec import (
     Stec,
     StecAlreadyLoadedError,
     StecLoadError,
+    StecNameError,
     StecSyntaxError,
 )
 
@@ -138,4 +139,47 @@ def test_load_file_with_comments_and_interpolation(tmp_path, fresh_stec):
         "port": 8080,
         "debug": True,
         "dsn": "postgres://localhost:5432/app?pool=10",
+    }
+
+import os
+
+import pytest
+
+
+@pytest.fixture()
+def guarded_env():
+    snapshot = dict(os.environ)
+    yield
+    os.environ.clear()
+    os.environ.update(snapshot)
+
+
+def test_load_fails_when_required_env_is_missing(tmp_path, fresh_stec, guarded_env):
+    os.environ.pop("STEC_TEST_MODE", None)
+
+    with pytest.raises(StecNameError):
+        Stec.load(write_config(tmp_path, "import env string STEC_TEST_MODE"))
+
+    assert not Stec.is_loaded
+
+
+def test_load_with_env_integration(tmp_path, fresh_stec, guarded_env):
+    os.environ["STEC_TEST_MODE"] = "extra"
+    source = """
+    # runtime switches
+    var dev = true  # flip for prod
+
+    export env MYAPP_MODE = $dev ? "development" : "production"
+
+    import env int STEC_TEST_PORT = 8080
+    import env string STEC_TEST_MODE
+    expose string banner = "${MYAPP_MODE} on port ${STEC_TEST_PORT}"
+    """
+    Stec.load(write_config(tmp_path, source))
+
+    assert os.environ["MYAPP_MODE"] == "development"
+    assert Stec.as_dict() == {
+        "STEC_TEST_PORT": 8080,
+        "STEC_TEST_MODE": "extra",
+        "banner": "development on port 8080",
     }

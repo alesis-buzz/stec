@@ -2,7 +2,16 @@
 
 import pytest
 
-from stec.nodes import ExposeDecl, Interp, Literal, Ternary, Var, VarDecl
+from stec.nodes import (
+    ExposeDecl,
+    ExportEnvDecl,
+    ImportEnvDecl,
+    Interp,
+    Literal,
+    Ternary,
+    Var,
+    VarDecl,
+)
 from stec.errors import StecSyntaxError
 from stec.parser import parse, tokenize
 
@@ -234,3 +243,58 @@ def test_missing_interpolation_name_error():
     with pytest.raises(StecSyntaxError) as error:
         parse('expose string s = "${}"')
     assert "missing variable name" in str(error.value)
+
+def test_parse_export_env_declaration():
+    (decl,) = parse('export env MY_FLAG = "abc"')
+    assert isinstance(decl, ExportEnvDecl)
+    assert decl.name == "MY_FLAG"
+    assert isinstance(decl.value, Literal)
+    assert decl.value.value == "abc"
+    assert decl.position.line == 1
+
+
+def test_parse_import_env_with_default():
+    (decl,) = parse("import env int PORT = 8080")
+    assert isinstance(decl, ImportEnvDecl)
+    assert decl.name == "PORT"
+    assert decl.type == "int"
+    assert isinstance(decl.default, Literal)
+    assert decl.default.value == 8080
+
+
+def test_parse_import_env_without_default():
+    (decl,) = parse("import env string HOME")
+    assert isinstance(decl, ImportEnvDecl)
+    assert decl.name == "HOME"
+    assert decl.type == "string"
+    assert decl.default is None
+
+
+def test_parse_import_env_default_may_be_a_ternary():
+    _, decl = parse("var dev = false\nimport env int PORT = $dev ? 8080 : 80")
+    assert isinstance(decl, ImportEnvDecl)
+    assert isinstance(decl.default, Ternary)
+
+
+def test_export_requires_env_keyword():
+    with pytest.raises(StecSyntaxError) as error:
+        parse("export int X = 1")
+    assert "expected 'env' after 'export'" in str(error.value)
+
+
+def test_import_requires_env_keyword():
+    with pytest.raises(StecSyntaxError) as error:
+        parse("import int X = 1")
+    assert "expected 'env' after 'import'" in str(error.value)
+
+
+def test_import_unknown_type():
+    with pytest.raises(StecSyntaxError) as error:
+        parse("import env integer X")
+    assert "unknown type 'integer'" in str(error.value)
+
+
+def test_import_env_missing_name():
+    with pytest.raises(StecSyntaxError) as error:
+        parse("import env int")
+    assert "expected an environment variable name" in str(error.value)
